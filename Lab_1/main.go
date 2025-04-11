@@ -120,13 +120,7 @@ func decrypt(b, key string) string {
 	return G_last(round_keys[0], state[0], state[1])
 }
 
-// 11fe7a6d
-// f - test:   g[87654321](fedcba98) = fdcbc20c
-// T - test:   t(fdb97531) = 2a196f34
 func main() {
-	//fmt.Println(t("fdb97531"))
-	//fmt.Println(g("fdcbc20c", "87654321"))
-	//fmt.Println(G("fcfdfeff", "8025c0a5", "b0d66514"))
 	fmt.Println("fedcba9876543210")
 	cipher := encrypt("fedcba9876543210", "ffeeddccbbaa99887766554433221100f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff")
 	fmt.Println(cipher)
