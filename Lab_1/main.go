@@ -82,64 +82,79 @@ func G(round_key, a1, a0 string) []string {
 
 func G_last(round_key, a1, a0 string) string {
 	tmp := g(round_key, a0)
-	val1, err := strconv.ParseInt(string(tmp), 16, 64)
+	val1, err := strconv.ParseUint(string(tmp), 16, 32)
 	if err != nil {
 		fmt.Println("Can't convert hex to int:", err)
 		os.Exit(-1)
 	}
-	val2, err := strconv.ParseInt(string(a1), 16, 64)
+	val2, err := strconv.ParseUint(string(a1), 16, 32)
 	if err != nil {
 		fmt.Println("Can't convert hex to int:", err)
 		os.Exit(-1)
 	}
-	return strconv.FormatInt(val1^val2, 16) + a0
+	return strconv.FormatUint(val1^val2, 16) + a0
 }
-func encrypt(a, key string) string {
+func magic(flag, a, IV, key string) string {
 	var (
-		blocks = len(a) / 16
-		result = ""
+		blocks         = int(math.Ceil(float64(len(a)) / 16))
+		result         = ""
+		round_keys     = generete_round_keys(key)
+		temp_iv        = IV
+		a0, a1         = "", ""
+		current_iv     = ""
+		current_cipher = ""
+		tmp            = ""
 	)
+
 	for i := range blocks {
-		tmp := a[i*BLOCK_SIZE*2 : (i+1)*BLOCK_SIZE*2]
-		var (
-			a0 = tmp[8:]
-			a1 = tmp[:8]
-		)
-		var round_keys = generete_round_keys(key)
+		if i == blocks-1 {
+			tmp = a[i*BLOCK_SIZE*2:]
+		} else {
+			tmp = a[i*BLOCK_SIZE*2 : (i+1)*BLOCK_SIZE*2]
+		}
+		current_iv = temp_iv[:16]
+		a0 = current_iv[8:]
+		a1 = current_iv[:8]
+
 		var state = []string{a1, a0}
 		for i := range ROUNDS - 1 {
 			state = G(round_keys[i], state[0], state[1])
 		}
-		result += G_last(round_keys[31], state[0], state[1])
-	}
-	return result
-}
+		current_cipher = G_last(round_keys[31], state[0], state[1])
+		temp_iv = temp_iv[len(temp_iv)-16:] + current_cipher
+		fmt.Println(tmp)
+		fmt.Println(a1 + a0)
 
-func decrypt(b, key string) string {
-
-	var (
-		blocks = len(b) / 16
-		result = ""
-	)
-	for i := range blocks {
-		tmp := b[i*BLOCK_SIZE*2 : (i+1)*BLOCK_SIZE*2]
-		var (
-			b0 = tmp[8:]
-			b1 = tmp[:8]
-		)
-		var round_keys = generete_round_keys(key)
-		var state = []string{b1, b0}
-		for i := ROUNDS - 1; i > 0; i-- {
-			state = G(round_keys[i], state[0], state[1])
+		val1, err := strconv.ParseUint(string(tmp), 16, 64)
+		if err != nil {
+			fmt.Println("Can't convert hex to int:", err)
+			os.Exit(-1)
 		}
-		result += G_last(round_keys[0], state[0], state[1])
+		val2, err := strconv.ParseUint(string(current_cipher), 16, 64)
+		if err != nil {
+			fmt.Println("Can't convert hex to int:", err)
+			os.Exit(-1)
+		}
+		fmt.Println(current_cipher)
+
+		data := strconv.FormatUint(val1^val2, 16)
+		if flag == "e" {
+			data = strings.Repeat("0", 16-len(data)) + data
+		}
+
+		result += data
+		fmt.Println(result[i*BLOCK_SIZE*2:])
+
+		fmt.Println()
 	}
 	return result
 }
 
 func main() {
-	cipher := encrypt("fedcba9876543210fedcba9876543210", "ffeeddccbbaa99887766554433221100f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff")
+	IV := "1234567890abcdef234567890abcdef1"
+	key := "ffeeddccbbaa99887766554433221100f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"
+	cipher := magic("e", "92def06b3c130a59db54c704f8189d204a98fb2e67a8024c8912409b17b57e", IV, key)
 	fmt.Println(cipher)
-	opened := decrypt(cipher, "ffeeddccbbaa99887766554433221100f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff")
+	opened := magic("d", cipher, IV, key)
 	fmt.Println(opened)
 }
