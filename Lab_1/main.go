@@ -96,33 +96,49 @@ func G_last(round_key, a1, a0 string) string {
 }
 func encrypt(a, key string) string {
 	var (
-		a0 = a[8:]
-		a1 = a[:8]
+		blocks = len(a) / 16
+		result = ""
 	)
-	var round_keys = generete_round_keys(key)
-	var state = []string{a1, a0}
-	for i := range ROUNDS - 1 {
-		state = G(round_keys[i], state[0], state[1])
+	for i := range blocks {
+		tmp := a[i*BLOCK_SIZE*2 : (i+1)*BLOCK_SIZE*2]
+		var (
+			a0 = tmp[8:]
+			a1 = tmp[:8]
+		)
+		var round_keys = generete_round_keys(key)
+		var state = []string{a1, a0}
+		for i := range ROUNDS - 1 {
+			state = G(round_keys[i], state[0], state[1])
+		}
+		result += G_last(round_keys[31], state[0], state[1])
 	}
-	return G_last(round_keys[31], state[0], state[1])
+	return result
 }
 
 func decrypt(b, key string) string {
+
 	var (
-		b0 = b[8:]
-		b1 = b[:8]
+		blocks = len(b) / 16
+		result = ""
 	)
-	var round_keys = generete_round_keys(key)
-	var state = []string{b1, b0}
-	for i := ROUNDS - 1; i > 0; i-- {
-		state = G(round_keys[i], state[0], state[1])
+	for i := range blocks {
+		tmp := b[i*BLOCK_SIZE*2 : (i+1)*BLOCK_SIZE*2]
+		var (
+			b0 = tmp[8:]
+			b1 = tmp[:8]
+		)
+		var round_keys = generete_round_keys(key)
+		var state = []string{b1, b0}
+		for i := ROUNDS - 1; i > 0; i-- {
+			state = G(round_keys[i], state[0], state[1])
+		}
+		result += G_last(round_keys[0], state[0], state[1])
 	}
-	return G_last(round_keys[0], state[0], state[1])
+	return result
 }
 
 func main() {
-	fmt.Println("fedcba9876543210")
-	cipher := encrypt("fedcba9876543210", "ffeeddccbbaa99887766554433221100f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff")
+	cipher := encrypt("fedcba9876543210fedcba9876543210", "ffeeddccbbaa99887766554433221100f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff")
 	fmt.Println(cipher)
 	opened := decrypt(cipher, "ffeeddccbbaa99887766554433221100f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff")
 	fmt.Println(opened)
