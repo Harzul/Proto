@@ -1,13 +1,10 @@
 package main //«Магма» OFB
 import (
-	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"log"
 	"math"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 )
 
@@ -26,194 +23,198 @@ func rotateLeft32(val uint32, shift uint) uint32 {
 	return (val << shift) | (val >> (32 - shift))
 }
 
-func generete_round_keys(key string) []string {
-	var keys []string
+func generete_round_keys(key []byte) [][]byte {
+	var keys [][]byte
 	for range 3 {
 		for i := range 8 {
-			keys = append(keys, key[i*BLOCK_SIZE:i*BLOCK_SIZE+8])
+			keys = append(keys, key[i*8:i*8+8])
 		}
 	}
 	for i := range 8 {
-		keys = append(keys, key[64-(i*BLOCK_SIZE+8):64-i*BLOCK_SIZE])
+		keys = append(keys, key[64-(i*8+8):64-i*8])
 	}
-
 	return keys
 }
 
-func t(a string) string {
-	var result string
+func t(a []byte) []byte {
+	var result = make([]byte, 8)
 	for i := range 8 {
-		value, err := strconv.ParseUint(string(a[i]), 16, 32)
-		if err != nil {
-			fmt.Println("Can't convert hex to int:", err)
-			os.Exit(-1)
-		}
-		result += strconv.FormatUint(uint64(S_BOX[7-i][value]), 16)
+		result[i] = byte(S_BOX[7-i][a[i]])
 	}
 	return result
 }
 
-func g(round_key, a string) string {
-	var result string
-	val1, err := strconv.ParseUint(string(a), 16, 32)
-	if err != nil {
-		fmt.Println("Can't convert hex to int:", err)
-		os.Exit(-1)
+func g(round_key, a []byte) []byte {
+	var (
+		result = make([]byte, 8)
+		val1   uint32
+		val2   uint32
+		val3   uint32
+	)
+	for _, nibble := range a {
+		val1 = (val1 << 4) | uint32(nibble)
 	}
-	val2, err := strconv.ParseUint(string(round_key), 16, 32)
-	if err != nil {
-		fmt.Println("Can't convert hex to int:", err)
-		os.Exit(-1)
+	for _, nibble := range round_key {
+		val2 = (val2 << 4) | uint32(nibble)
 	}
-
-	result = strconv.FormatUint(uint64(val1+val2)%uint64(math.Pow(2, 32)), 16)
-	result = t(strings.Repeat("0", 8-len(result)) + result)
-
-	val3, err := strconv.ParseUint(string(result), 16, 32)
-	if err != nil {
-		fmt.Println("Can't convert hex to int:", err)
-		os.Exit(-1)
+	tmp := uint32(val1 + val2)
+	for i := 7; i >= 0; i-- {
+		result[i] = byte(tmp & 0xF)
+		tmp >>= 4
 	}
 
-	result = strconv.FormatUint(uint64(rotateLeft32(uint32(val3), 11)), 16)
-	result = strings.Repeat("0", 8-len(result)) + result
+	result = t(result)
 
-	return result[len(result)-8:8] + result[:len(result)-8]
+	for _, nibble := range result {
+		val3 = (val3 << 4) | uint32(nibble)
+	}
+
+	tmp = rotateLeft32(val3, 11)
+	for i := 7; i >= 0; i-- {
+		result[i] = byte(tmp & 0xF)
+		tmp >>= 4
+	}
+	return result
 }
 
-func G(round_key, a1, a0 string) []string {
+func G(round_key, a1, a0 []byte) [][]byte {
 	tmp := g(round_key, a0)
-	val1, err := strconv.ParseUint(string(tmp), 16, 32)
-	if err != nil {
-		fmt.Println("Can't convert hex to int:", err)
-		os.Exit(-1)
+
+	var (
+		result = make([][]byte, 2)
+		val1   uint32
+		val2   uint32
+	)
+	for _, nibble := range tmp {
+		val1 = (val1 << 4) | uint32(nibble)
 	}
-	val2, err := strconv.ParseUint(string(a1), 16, 32)
-	if err != nil {
-		fmt.Println("Can't convert hex to int:", err)
-		os.Exit(-1)
+	for _, nibble := range a1 {
+		val2 = (val2 << 4) | uint32(nibble)
 	}
 
-	return []string{a0, strconv.FormatUint(val1^val2, 16)}
+	n := uint32(val1 ^ val2)
+
+	tmp = make([]byte, 8)
+	for i := 7; i >= 0; i-- {
+		tmp[i] = byte(n & 0xF)
+		n >>= 4
+	}
+	result[0] = a0
+	result[1] = tmp
+	return result
 }
 
-func G_last(round_key, a1, a0 string) string {
+func G_last(round_key, a1, a0 []byte) []byte {
 	tmp := g(round_key, a0)
-	val1, err := strconv.ParseUint(string(tmp), 16, 32)
-	if err != nil {
-		fmt.Println("Can't convert hex to int:", err)
-		os.Exit(-1)
+
+	var (
+		result []byte
+		val1   uint32
+		val2   uint32
+	)
+	for _, nibble := range tmp {
+		val1 = (val1 << 4) | uint32(nibble)
 	}
-	val2, err := strconv.ParseUint(string(a1), 16, 32)
-	if err != nil {
-		fmt.Println("Can't convert hex to int:", err)
-		os.Exit(-1)
+	for _, nibble := range a1 {
+		val2 = (val2 << 4) | uint32(nibble)
 	}
 
-	return strconv.FormatUint(val1^val2, 16) + a0
+	n := uint32(val1 ^ val2)
+	tmp = make([]byte, 8)
+	for i := 7; i >= 0; i-- {
+		tmp[i] = byte(n & 0xF)
+		n >>= 4
+	}
+	result = append(result, tmp...)
+	result = append(result, a0...)
+
+	return result
 }
 
-func magic(flag, a, IV, key string) string {
+func magic(a, IV, key []byte) []byte {
 	var (
 		blocks         = int(math.Ceil(float64(len(a)) / 16))
-		result         = ""
+		result         = []byte{}
 		round_keys     = generete_round_keys(key)
 		temp_iv        = IV
-		a0, a1         = "", ""
-		current_iv     = ""
-		current_cipher = ""
-		tmp            = ""
+		a0, a1         = make([]byte, 16), make([]byte, 16)
+		current_iv     = []byte{}
+		current_cipher = []byte{}
+		tmp            = make([]byte, blocks)
+		val1           uint64
+		val2           uint64
 	)
-	for i := 0; i < 5; i++ {
-		key = randomHexString(64)
-		_ = len(key)
-	}
-
 	for i := range blocks {
 		if i == blocks-1 {
-			tmp = a[i*BLOCK_SIZE*2:]
+			tmp = a[i*8*2:]
 		} else {
-			tmp = a[i*BLOCK_SIZE*2 : (i+1)*BLOCK_SIZE*2]
+			tmp = a[i*8*2 : (i+1)*8*2]
 		}
+
 		current_iv = temp_iv[:16]
+
 		a0 = current_iv[8:]
 		a1 = current_iv[:8]
+		var state = [][]byte{a1, a0}
 
-		var state = []string{a1, a0}
 		for i := range ROUNDS - 1 {
 			state = G(round_keys[i], state[0], state[1])
+
 		}
 		current_cipher = G_last(round_keys[31], state[0], state[1])
-		temp_iv = temp_iv[len(temp_iv)-16:] + current_cipher
 
-		val1, err := strconv.ParseUint(string(tmp), 16, 64)
-		if err != nil {
-			fmt.Println("Can't convert hex to int:", err)
-			os.Exit(-1)
-		}
-		val2, err := strconv.ParseUint(string(current_cipher), 16, 64)
-		if err != nil {
-			fmt.Println("Can't convert hex to int:", err)
-			os.Exit(-1)
-		}
+		temp_iv = append(temp_iv[len(temp_iv)-16:], current_cipher...)
 
-		data := strconv.FormatUint(val1^val2, 16)
-		if flag == "e" {
-			data = strings.Repeat("0", 16-len(data)) + data
+		for _, nibble := range tmp {
+			val1 = (val1 << 4) | uint64(nibble)
 		}
+		for _, nibble := range current_cipher {
+			val2 = (val2 << 4) | uint64(nibble)
+		}
+		data := uint64(val1 ^ val2)
 
-		result += data
-	}
-	for j := range ROUNDS - 1 {
-		for i := 0; i < 5; i++ {
-			round_keys[j] = randomHexString(64)
-			_ = len(key)
+		tmp = make([]byte, 16)
+		for i := 15; i >= 0; i-- {
+			tmp[i] = byte(data & 0xF)
+			data >>= 4
 		}
+		result = append(result, tmp...)
 	}
 	return result
 }
-func randomHexString(n int) string {
-	bytes := make([]byte, (n+1)/2)
-	_, err := rand.Read(bytes)
-	if err != nil {
-		panic(err)
-	}
-	hexStr := hex.EncodeToString(bytes)
-	return hexStr[:n]
 
-}
 func main() {
-	logFile, err := os.OpenFile("app.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		log.Fatalf("Ошибка открытия файла для логов: %v", err)
-	}
-	defer logFile.Close()
-	log.SetOutput(logFile)
-	log.SetPrefix("[APP] ")
-	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
-	log.Println("Приложение запущено")
-	/*if len(os.Args) < 2 {
-		fmt.Println("Usage: go run main.go <filename>")
-		return
-	}*/
-
-	/*if len(os.Args) < 4 {
-		fmt.Println("Usage: go run main.go <mode> <input_file> <output_file>")
-		return
-	}*/
-	IV := "1234567890abcdef234567890abcdef1"
-	key := "ffeeddccbbaa99887766554433221100f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"
-
-	start := time.Now()
 	data, err := os.ReadFile("test_10MB.txt")
 	if err != nil {
-		log.Fatalf("Error reading file: %v", err)
+		fmt.Println("Ошибка чтения файла:", err)
+		return
 	}
-	text := hex.EncodeToString(data)
-	log.Println("Шифрование начато")
-	cipher := magic("e", text, IV, key)
-	log.Println("Шифрование завершено")
-	data, err = hex.DecodeString(string(cipher))
+	t1 := make([]byte, len(data)*2)
+	for i, b := range data {
+		t1[i*2] = (b >> 4) & 0x0F
+		t1[i*2+1] = b & 0x0F
+	}
+	IV, _ := hex.DecodeString("1234567890abcdef234567890abcdef1")
+	t2 := make([]byte, len(IV)*2)
+	for i, b := range IV {
+		t2[i*2] = (b >> 4) & 0x0F
+		t2[i*2+1] = b & 0x0F
+	}
+	key, _ := hex.DecodeString("ffeeddccbbaa99887766554433221100f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff")
+	t3 := make([]byte, len(key)*2)
+	for i, b := range key {
+		t3[i*2] = (b >> 4) & 0x0F
+		t3[i*2+1] = b & 0x0F
+	}
+	start := time.Now()
+	cipher := magic(t1, t2, t3)
+	duration := time.Since(start)
+	fmt.Printf("Время выполнения шифрования: %v\n", duration)
+	bytes := make([]byte, len(cipher)/2)
+	for i := 0; i < len(bytes); i++ {
+		bytes[i] = (cipher[i*2] << 4) | (cipher[i*2+1] & 0xF)
+	}
+	data, err = hex.DecodeString(hex.EncodeToString(bytes))
 	if err != nil {
 		log.Fatalf("Error decoding hex data: %v", err)
 	}
@@ -221,19 +222,36 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error writing to output file: %v", err)
 	}
-	duration := time.Since(start)
-	fmt.Printf("Время выполнения шифрования: %v\n", duration)
 
-	start = time.Now()
 	data, err = os.ReadFile("test_10MB_C.txt")
 	if err != nil {
 		log.Fatalf("Error reading file: %v", err)
 	}
-	text = hex.EncodeToString(data)
-	log.Println("Расшифрование начато")
-	deciphered := magic("d", text, IV, key)
-	log.Println("Расшифрование завершено")
-	data, err = hex.DecodeString(string(deciphered))
+	t1 = make([]byte, len(data)*2)
+	for i, b := range data {
+		t1[i*2] = (b >> 4) & 0x0F
+		t1[i*2+1] = b & 0x0F
+	}
+	start = time.Now()
+	cipher = magic(t1, t2, t3)
+	duration = time.Since(start)
+
+	fmt.Printf("Время выполнения расшифрования: %v\n", duration)
+	bytes = make([]byte, len(cipher)/2)
+	for i := 0; i < len(bytes); i++ {
+		bytes[i] = (cipher[i*2] << 4) | (cipher[i*2+1] & 0xF)
+	}
+	fmt.Printf("%#v\n", bytes)
+	counter := 0
+	for _, val := range bytes {
+		if val == 0x00 {
+			counter++
+			continue
+		}
+		break
+	}
+	fmt.Printf("%#v\n", bytes)
+	data, err = hex.DecodeString(hex.EncodeToString(bytes[counter:]))
 	if err != nil {
 		log.Fatalf("Error decoding hex data: %v", err)
 	}
@@ -241,13 +259,5 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error writing to output file: %v", err)
 	}
-	duration = time.Since(start)
-	fmt.Printf("Время выполнения расшифрования: %v\n", duration)
 
-	for i := 0; i < 5; i++ {
-		key = randomHexString(64)
-		_ = len(key)
-	}
-
-	log.Println("Приложение закрыто")
 }
