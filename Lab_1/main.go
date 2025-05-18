@@ -1,5 +1,6 @@
 package main //«Магма» OFB
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
 	"log"
@@ -138,7 +139,7 @@ func magic(a, IV, key []byte) []byte {
 		round_keys     = generete_round_keys(key)
 		temp_iv        = IV
 		a0, a1         = make([]byte, 16), make([]byte, 16)
-		current_iv     = []byte{}
+		n              = []byte{}
 		current_cipher = []byte{}
 		tmp            = make([]byte, blocks)
 		val1           uint64
@@ -150,20 +151,14 @@ func magic(a, IV, key []byte) []byte {
 		} else {
 			tmp = a[i*8*2 : (i+1)*8*2]
 		}
-
-		current_iv = temp_iv[:16]
-
-		a0 = current_iv[8:]
-		a1 = current_iv[:8]
+		n = temp_iv[:16]
+		a0 = n[8:]
+		a1 = n[:8]
 		var state = [][]byte{a1, a0}
-
 		for i := range ROUNDS - 1 {
 			state = G(round_keys[i], state[0], state[1])
-
 		}
 		current_cipher = G_last(round_keys[31], state[0], state[1])
-
-		temp_iv = append(temp_iv[len(temp_iv)-16:], current_cipher...)
 
 		for _, nibble := range tmp {
 			val1 = (val1 << 4) | uint64(nibble)
@@ -171,14 +166,12 @@ func magic(a, IV, key []byte) []byte {
 		for _, nibble := range current_cipher {
 			val2 = (val2 << 4) | uint64(nibble)
 		}
-		data := uint64(val1 ^ val2)
-
-		tmp = make([]byte, 16)
-		for i := 15; i >= 0; i-- {
-			tmp[i] = byte(data & 0xF)
-			data >>= 4
+		for index, val := range tmp {
+			current_cipher[index] = current_cipher[index] ^ tmp[index]
+			_ = val
 		}
-		result = append(result, tmp...)
+		temp_iv = append(temp_iv[16:], current_cipher...)
+		result = append(result, current_cipher...)
 	}
 	return result
 }
@@ -206,15 +199,17 @@ func main() {
 		t3[i*2] = (b >> 4) & 0x0F
 		t3[i*2+1] = b & 0x0F
 	}
+
 	start := time.Now()
 	cipher := magic(t1, t2, t3)
+
 	duration := time.Since(start)
 	fmt.Printf("Время выполнения шифрования: %v\n", duration)
-	bytes := make([]byte, len(cipher)/2)
-	for i := 0; i < len(bytes); i++ {
-		bytes[i] = (cipher[i*2] << 4) | (cipher[i*2+1] & 0xF)
+	bt := make([]byte, len(cipher)/2)
+	for i := 0; i < len(bt); i++ {
+		bt[i] = (cipher[i*2] << 4) | (cipher[i*2+1] & 0xF)
 	}
-	data, err = hex.DecodeString(hex.EncodeToString(bytes))
+	data, err = hex.DecodeString(hex.EncodeToString(bt))
 	if err != nil {
 		log.Fatalf("Error decoding hex data: %v", err)
 	}
@@ -222,7 +217,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error writing to output file: %v", err)
 	}
-
 	data, err = os.ReadFile("test_10MB_C.txt")
 	if err != nil {
 		log.Fatalf("Error reading file: %v", err)
@@ -237,25 +231,12 @@ func main() {
 	duration = time.Since(start)
 
 	fmt.Printf("Время выполнения расшифрования: %v\n", duration)
-	bytes = make([]byte, len(cipher)/2)
-	for i := 0; i < len(bytes); i++ {
-		bytes[i] = (cipher[i*2] << 4) | (cipher[i*2+1] & 0xF)
+	bt = make([]byte, len(cipher)/2)
+	for i := 0; i < len(bt); i++ {
+		bt[i] = (cipher[i*2] << 4) | (cipher[i*2+1] & 0xF)
 	}
-	fmt.Printf("%#v\n", bytes)
-	counter := 0
-	for _, val := range bytes {
-		if val == 0x00 {
-			counter++
-			continue
-		}
-		break
-	}
-	fmt.Printf("%#v\n", bytes)
-	data, err = hex.DecodeString(hex.EncodeToString(bytes[counter:]))
-	if err != nil {
-		log.Fatalf("Error decoding hex data: %v", err)
-	}
-	err = os.WriteFile("test_10MB_D.txt", data, 0644)
+
+	err = os.WriteFile("test_10MB_D.txt", []byte(string(bytes.TrimRight(bt, "\x00"))), 0644)
 	if err != nil {
 		log.Fatalf("Error writing to output file: %v", err)
 	}
