@@ -144,7 +144,7 @@ func main() {
 			writeData([]byte(string(bytes.TrimRight(bt, "\x00"))), filename+"_D.txt")
 		}
 
-		file.Close()
+		
 	}
-
+	file.Close()
 }
