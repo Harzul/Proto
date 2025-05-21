@@ -1,0 +1,1 @@
+go build .\main.go .\crypto.go .\file.go .\initiate.go .\log.go .\params.go .\tests.go
