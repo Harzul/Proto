@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bufio"
 	"encoding/hex"
+	"fmt"
 	"log"
 	"os"
 )
@@ -31,14 +33,35 @@ func getBytes(cipher []byte) []byte {
 	}
 	return bt
 }
-func readParams() ([]byte, []byte) {
-	IV, _ := hex.DecodeString("1234567890abcdef234567890abcdef1")
+func readParams(filename string) ([]byte, []byte) {
+	file, err := os.Open(filename)
+	if err != nil {
+		fmt.Println("Ошибка открытия файла:", err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	var data string
+	if scanner.Scan() {
+		data = scanner.Text()
+	}
+	if err := scanner.Err(); err != nil {
+		fmt.Println("Ошибка чтения:", err)
+	}
+
+	IV, _ := hex.DecodeString(data)
 	t2 := make([]byte, len(IV)*2)
 	for i, b := range IV {
 		t2[i*2] = (b >> 4) & 0x0F
 		t2[i*2+1] = b & 0x0F
 	}
-	key, _ := hex.DecodeString("ffeeddccbbaa99887766554433221100f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff")
+	if scanner.Scan() {
+		data = scanner.Text()
+	}
+	if err := scanner.Err(); err != nil {
+		fmt.Println("Ошибка чтения:", err)
+	}
+	key, _ := hex.DecodeString(data)
 	t3 := make([]byte, len(key)*2)
 	for i, b := range key {
 		t3[i*2] = (b >> 4) & 0x0F
