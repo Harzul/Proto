@@ -1,23 +1,134 @@
 package main
 
-func main() {
-	/*var m72 []uint8 = []uint8{
-		0xfb, 0xe2, 0xe5, 0xf0, 0xee, 0xe3, 0xc8, 0x20,
-		0xfb, 0xea, 0xfa, 0xeb, 0xef, 0x20, 0xff, 0xfb,
-		0xf0, 0xe1, 0xe0, 0xf0, 0xf5, 0x20, 0xe0, 0xed,
-		0x20, 0xe8, 0xec, 0xe0, 0xeb, 0xe5, 0xf0, 0xf2,
-		0xf1, 0x20, 0xff, 0xf0, 0xee, 0xec, 0x20, 0xf1,
-		0x20, 0xfa, 0xf2, 0xfe, 0xe5, 0xe2, 0x20, 0x2c,
-		0xe8, 0xf6, 0xf3, 0xed, 0xe2, 0x20, 0xe8, 0xe6,
-		0xee, 0xe1, 0xe8, 0xf0, 0xf2, 0xd1, 0x20, 0x2c,
-		0xe8, 0xf0, 0xf2, 0xe5, 0xe2, 0x20, 0xe5, 0xd1,
-	}
-	h2 := make([]uint8, 32)
-	get256(m72, 72, h2) // message, len, h2
-	print_arr(h2, 32)*/
+import (
+	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
+	"math/rand"
+	"os"
+	"strconv"
+	"time"
+)
 
-	testKdf_tree()
+var users = map[string]string{
+	"admin": "61646d696ee3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+	"user":  "75736572e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
 }
 
-//00557be5e584fd52a449b16b0251d05d27f94ab76cbaa6da890b59d8ef1e159d
-//486f64c1917879417fef082b3381a4e211c324f074654c38823a7b76f830ad00fa1fbae42b1285c0352f227524bc9ab16254288dd6863dccd5b9f54a1ad0541b
+func main() {
+	file, logger := initLogger()
+	logger.Println("Программа запущена")
+	err := initiate()
+	if err != nil {
+		logger.Fatalln("критичесая ошибка при инициализации: ", err)
+	}
+	scanner := bufio.NewScanner(os.Stdin)
+	username := ""
+	fmt.Print("Введите имя пользователя: ")
+	if scanner.Scan() {
+		username = scanner.Text()
+	}
+	password := ""
+	var counter = 2
+	for {
+		fmt.Printf("Введите пароль пользователя %s: ", username)
+		if scanner.Scan() {
+			password = hex.EncodeToString(sha256.New().Sum([]byte(scanner.Text())))
+		}
+		if users[username] == password {
+			break
+		} else {
+			fmt.Printf("Пароль/имя пользователя неверено, осталось попыток %d\n", counter)
+			counter -= 1
+		}
+		if counter == -1 {
+			logger.Fatalln("исчерпано число попыток входа: ", err)
+		}
+	}
+	if username == "admin" && users[username] == password {
+		file, err := os.Open("config.json")
+		if err != nil {
+			logger.Fatalln("ошибка открытия файла")
+		}
+		defer file.Close()
+
+		data, err := io.ReadAll(file)
+		if err != nil {
+			logger.Fatalln("ошибка чтения файла")
+		}
+		var conf Config
+		err = json.Unmarshal(data, &conf)
+		if err != nil {
+			logger.Fatalln("ошибка декодирования JSON")
+		}
+		fmt.Println("Выберите задачу:\n1-Изменить время жизни СКЗИ\n2-Что-то еще...  ")
+
+		task := ""
+		if scanner.Scan() {
+			task = scanner.Text()
+		}
+		if task == "1" {
+			var t = conf.TimeLimit
+			fmt.Println("Добавляем Год к времени активности")
+			conf.TimeLimit = t.Add(8760 * time.Hour)
+			file, err := os.Create("config.json")
+			if err != nil {
+				logger.Fatalln("ошибка обновления JSON")
+			}
+			defer file.Close()
+
+			encoder := json.NewEncoder(file)
+			encoder.SetIndent("", "  ")
+			if err := encoder.Encode(conf); err != nil {
+				logger.Fatalln("ошибка обновления JSON")
+			}
+			logger.Println("Время жизни изменено")
+		}
+	} else if (username != "admin") && (users[username] == password) {
+		keysNum := -1
+		fmt.Println("Введите количество ключей: ")
+		if scanner.Scan() {
+			keysNum, err = strconv.Atoi(scanner.Text())
+			if err != nil {
+				logger.Fatalln("ошибка преобразования str в int")
+			}
+		}
+		res := make([]uint8, keysNum*256/8)
+		fmt.Println("Введите название файле с параметрами: ")
+		paramFile := ""
+		if scanner.Scan() {
+			paramFile = scanner.Text()
+		}
+		file, err := os.Open(paramFile)
+		if err != nil {
+			fmt.Println("Ошибка открытия файла:", err)
+		}
+		scanner := bufio.NewScanner(file)
+		var data string
+		if scanner.Scan() {
+			data = scanner.Text()
+		}
+		if err := scanner.Err(); err != nil {
+			fmt.Println("Ошибка чтения:", err)
+		}
+		key, _ := hex.DecodeString(data)
+		defer file.Close()
+		logger.Println("Выработка начата")
+		kdf_tree(res, key, 32, 1, keysNum*256)
+		logger.Println("Выработка завершена")
+		print_arr(res, keysNum)
+
+		src := rand.NewSource(time.Now().UnixNano())
+		r := rand.New(src)
+		for range 5 {
+			for index := range key {
+				key[index] = byte(r.Intn(16))
+			}
+		}
+	}
+
+	file.Close()
+}
