@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -42,11 +43,11 @@ func testDate(conf Config) error {
 	return nil
 }
 func testAlgo() error {
-	err := test_hmac()
+	err := test_stribog()
 	if err != nil {
 		return err
 	}
-	err = test_stribog()
+	err = test_hmac()
 	if err != nil {
 		return err
 	}
@@ -71,7 +72,7 @@ func testKdf_tree() error {
 		0x07, 0x4c, 0x93, 0x30, 0x59, 0x9d, 0x7f, 0x8d, 0x71, 0x2f, 0xca, 0x54, 0x39, 0x2f, 0x4d, 0xdd,
 		0xe9, 0x37, 0x51, 0x20, 0x6b, 0x35, 0x84, 0xc8, 0xf4, 0x3f, 0x9e, 0x6d, 0xc5, 0x15, 0x31, 0xf9,
 	}
-	if cmp(res, test, 64) == 0 {
+	if !bytes.Equal(res[:], test[:]) {
 		return errors.New("ошибка при проверке Kdf_tree")
 	}
 
@@ -95,8 +96,8 @@ func test_hmac() error {
 		0x01, 0x31, 0x37, 0x01, 0x0a, 0x83, 0x75, 0x4f,
 		0xd0, 0xaf, 0x6d, 0x7c, 0xd4, 0x92, 0x2e, 0xd9,
 	}
-	Hmac256(ret, K, 32, T, 16)
-	if cmp(ret, t, 32) == 0 {
+	Hmac256(ret, K, T, 32, 16)
+	if !bytes.Equal(ret[:], t[:]) {
 		return errors.New("ошибка при проверке hmac")
 	}
 	return nil
@@ -153,19 +154,19 @@ func test_stribog() error {
 	h1 := make([]uint8, 64)
 	h2 := make([]uint8, 32)
 
-	get512(m63, 63, h1)
-	if cmp(h1, test1, 64) == 0 {
+	get512(m63, h1)
+	if !bytes.Equal(h1[:], test1[:]) {
 		return errors.New("ошибка при проверке stribog")
 	}
 
-	get256(m63, 63, h2)
-	get512(m72, 72, h1)
-	if cmp(h1, test2, 64) == 0 {
+	get256(m63, h2)
+	get512(m72, h1)
+	if !bytes.Equal(h1[:], test2[:]) {
 		return errors.New("ошибка при проверке stribog")
 	}
 
-	get256(m72, 72, h2)
-	if cmp(h2, test3, 32) == 0 {
+	get256(m72, h2)
+	if !bytes.Equal(h2[:], test3[:]) {
 		return errors.New("ошибка при проверке stribog")
 	}
 	return nil

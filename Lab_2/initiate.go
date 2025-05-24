@@ -40,10 +40,5 @@ func initiate() error {
 		return err
 	}
 
-	err = checkSumm(conf)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
