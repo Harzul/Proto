@@ -42,9 +42,18 @@ func testDate(conf Config) error {
 	return nil
 }
 func testAlgo() error {
-	test_hmac()
-	test_stribog()
-	testKdf_tree()
+	err := test_hmac()
+	if err != nil {
+		return err
+	}
+	err = test_stribog()
+	if err != nil {
+		return err
+	}
+	err = testKdf_tree()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
