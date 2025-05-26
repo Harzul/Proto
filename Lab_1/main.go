@@ -75,17 +75,31 @@ func main() {
 		if err != nil {
 			logger.Fatalln("ошибка декодирования JSON")
 		}
-		fmt.Println("Выберите задачу:\n1-Изменить время жизни СКЗИ\n2-Что-то еще...  ")
+		fmt.Println("Выберите задачу:\n1-Изменить ключ\n2-Изменить время жизни СКЗИ\n3-Что-то еще...  ")
 
 		task := ""
 		if scanner.Scan() {
 			task = scanner.Text()
 		}
 		if task == "1" {
+			value := ""
+			fmt.Println("Введите новое значение: ")
+			if scanner.Scan() {
+				value = scanner.Text()
+			}
+			fmt.Println("Изменяем ключ")
+			file, err := os.Create("secret.key")
+			if err != nil {
+				logger.Fatalln("ошибка обновления файла")
+			}
+			defer file.Close()
+			file.WriteString(value)
+			logger.Println("Ключ изменен")
+		} else if task == "2" {
 			var t = conf.TimeLimit
 			fmt.Println("Добавляем Год к времени активности")
 			conf.TimeLimit = t.Add(8760 * time.Hour)
-			file, err := os.Create("config.json")
+			file, err = os.Create("config.json")
 			if err != nil {
 				logger.Fatalln("ошибка обновления JSON")
 			}
@@ -96,6 +110,7 @@ func main() {
 			if err := encoder.Encode(conf); err != nil {
 				logger.Fatalln("ошибка обновления JSON")
 			}
+			logger.Println("Время жизни изменено")
 		}
 	} else if (username != "admin") && (users[username] == password) {
 		fmt.Println("Введите название файла для обработки: ")
@@ -144,7 +159,6 @@ func main() {
 			writeData([]byte(string(bytes.TrimRight(bt, "\x00"))), filename+"_D.txt")
 		}
 
-		
 	}
 	file.Close()
 }
