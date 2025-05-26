@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
 	"os"
@@ -56,7 +58,7 @@ func main() {
 		}
 		defer file.Close()
 
-		fmt.Println("Выберите задачу:\n1-Изменить ключ\n2-Что-то еще...  ")
+		fmt.Println("Выберите задачу:\n1-Изменить ключ\n2-Изменить время жизни СКЗИ\n3-Что-то еще...  ")
 
 		task := ""
 		if scanner.Scan() {
@@ -76,6 +78,37 @@ func main() {
 			defer file.Close()
 			file.WriteString(value)
 			logger.Println("Ключ изменен")
+		} else if task == "2" {
+			file, err := os.Open("config.json")
+			if err != nil {
+				logger.Fatalln("ошибка открытия файла")
+			}
+			defer file.Close()
+
+			data, err := io.ReadAll(file)
+			if err != nil {
+				logger.Fatalln("ошибка чтения файла")
+			}
+			var conf Config
+			err = json.Unmarshal(data, &conf)
+			if err != nil {
+				logger.Fatalln("ошибка декодирования JSON")
+			}
+			var t = conf.TimeLimit
+			fmt.Println("Добавляем Год к времени активности")
+			conf.TimeLimit = t.Add(8760 * time.Hour)
+			file, err = os.Create("config.json")
+			if err != nil {
+				logger.Fatalln("ошибка обновления JSON")
+			}
+			defer file.Close()
+
+			encoder := json.NewEncoder(file)
+			encoder.SetIndent("", "  ")
+			if err := encoder.Encode(conf); err != nil {
+				logger.Fatalln("ошибка обновления JSON")
+			}
+			logger.Println("Время жизни изменено")
 		}
 	} else if (username != "admin") && (users[username] == password) {
 		scanner := bufio.NewScanner(file)
