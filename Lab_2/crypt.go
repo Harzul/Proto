@@ -162,11 +162,6 @@ func get256(message, h []uint8) {
 	copy(h, temph)
 }
 
-func get512(message, h []uint8) {
-	initiateHash(512)
-	alg(message, h)
-}
-
 func Hmac256(ret, K, T []uint8, Klen, Tlen int) {
 	ipad := make([]uint8, 64)
 	opad := make([]uint8, 64)
@@ -201,7 +196,8 @@ func bytess(arr []uint8, step int) {
 		step = step / 256
 	}
 }
-func kdf_tree(ret, K []uint8, klen, R, l int) {
+func kdfTree(ret, K []uint8, klen, R, l int) {
+	//R - количество байт в байтовом представлении счетчика итераций
 	if !(R > 0 && R < 5) {
 		fmt.Printf("Wrong R\n")
 		return
@@ -217,7 +213,7 @@ func kdf_tree(ret, K []uint8, klen, R, l int) {
 	bytess(L, l)
 	copy(T[R:], label)
 	copy(T[R+4+1:], seed)
-	copy(T[R+1+4+8:], L)
+	copy(T[R+4+1+8:], L)
 	res := make([]uint8, 32)
 	for i := 1; i <= l/256; i++ {
 		bytess(I, i)

@@ -117,7 +117,7 @@ func main() {
 		key, _ := hex.DecodeString(data)
 		defer file.Close()
 		logger.Println("Выработка начата")
-		kdf_tree(res, key, 32, 1, keysNum*256)
+		kdfTree(res, key, 32, 1, keysNum*256)
 		logger.Println("Выработка завершена")
 		print_arr(res, keysNum)
 

@@ -30,6 +30,11 @@ func initiate() error {
 	if err != nil {
 		return errors.New("ошибка декодирования JSON")
 	}
+	err = checkSumm(conf)
+	if err != nil {
+		return err
+	}
+
 	err = testDate(conf)
 	if err != nil {
 		return err
