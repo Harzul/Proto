@@ -5,45 +5,41 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
-	"math"
 	"os"
 	"reflect"
 )
 
 func testAlgo() error {
-	var s Splitmix64
-	var x Xoshiro256_PP
 
-	var seed = make([]uint64, 4)
-
-	for range int(math.Pow(2, 16)) {
-		s.Next()
+	predict := []string{
+		"ce84432f8890d84d0f7e93e6ac140dc99406174bafa6b56904817be1df51246a",
+		"f58dbcd590c89cea62d608691534680cbf00cd600bb2f425caf6092eab272b71",
+		"4a61ee21996a8eebf2178b2d4f38f7bea4a6d259f1985b04b5158db89ee3a351",
+		"0d01a136ec0cebd055515079821023ccb825a27e42abdb2ec77a896e41367eae",
+		"e3e5c1c13532b007ee3c8c69933069da0f04769a2b0e75b8a1d5cc516c007c60",
+		"1a5a933601e7074db42ecdde06cbd4aa8f1582388c1d011286f24583b4925e27",
+		"e859646ad9fd193534015b49385a09da1b42c01572d264ece8b65f9a19ad00e7",
+		"b76e69eb3ec129fe337250a74395dbe439e9042e27451469962500c00c2315eb",
+		"b581baeb0b78995a945094efdb8806ca458a38f79e217b71e830fcc445ecf78a",
+		"d4acc9d149d201a7b2c20173f6720d4830f9e47003193f875312576e09e78e79",
 	}
-	for i := range 4 {
-		seed[i] = s.Next()
-	}
-	x.S = [4]uint64(seed)
+	nonce := []byte("nonce1234")
+	entropy := []byte("Chumanov Nikita KKSO-03-20")
 
-	predict := []uint64{
-		4332022498915112517,
-		6777032227142239569,
-		17275362995184283823,
-		1225089805541233209,
-		4554618018609422149,
-		14421996961521040327,
-		15942364711299469956,
-		7510107321175034685,
-		1879987344874185030,
-		17005661933589271247,
+	drbg, err := NewHashDRBG(entropy, nonce, nil)
+	if err != nil {
+		return errors.New("контроль функциональности не пройден")
 	}
-
-	var temp = make([]uint64, 10)
+	temp := make([]string, 10)
 	for i := range 10 {
-		temp[i] = x.Next()
+		output, err := drbg.Generate(32, nil)
+		if err != nil {
+			return errors.New("контроль функциональности не пройден")
+		}
+		temp[i] = hex.EncodeToString(output)
 	}
-
 	if !(reflect.DeepEqual(predict, temp)) {
-		return errors.New("контроль целостности не пройден")
+		return errors.New("контроль функциональности не пройден")
 	}
 	return nil
 }

@@ -5,7 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"math"
+	"log"
 	"math/rand"
 	"os"
 	"strconv"
@@ -20,23 +20,11 @@ var users = map[string]string{
 func main() {
 	file, logger := initLogger()
 	logger.Println("Программа запущена")
+
 	err := initiate()
 	if err != nil {
 		logger.Fatalln("критичесая ошибка при инициализации: ", err)
 	}
-	var s Splitmix64
-	var x Xoshiro256_PP
-
-	var seed = make([]uint64, 4)
-
-	for range int(math.Pow(2, 16)) {
-		s.Next()
-	}
-	for i := range 4 {
-		seed[i] = s.Next()
-	}
-	x.S = [4]uint64(seed)
-
 	scanner := bufio.NewScanner(os.Stdin)
 	username := ""
 	fmt.Print("Введите имя пользователя: ")
@@ -68,7 +56,7 @@ func main() {
 		}
 		defer file.Close()
 
-		fmt.Println("Выберите задачу:\n1-Изменить позицию генерации ключа\n2-Что-то еще...  ")
+		fmt.Println("Выберите задачу:\n1-Изменить ключ\n2-Что-то еще...  ")
 
 		task := ""
 		if scanner.Scan() {
@@ -80,52 +68,24 @@ func main() {
 			if scanner.Scan() {
 				value = scanner.Text()
 			}
-			fmt.Println("Изменяем отступ ключа")
+			fmt.Println("Изменяем ключ")
 			file, err := os.Create("secret.key")
 			if err != nil {
 				logger.Fatalln("ошибка обновления файла")
 			}
 			defer file.Close()
 			file.WriteString(value)
-			logger.Println("Отступ ключа изменен")
+			logger.Println("Ключ изменен")
 		}
 	} else if (username != "admin") && (users[username] == password) {
-		fmt.Println("Введите название файле с параметрами: ")
-		paramFile := ""
-		if scanner.Scan() {
-			paramFile = scanner.Text()
-		}
-		file, err := os.Open(paramFile)
-		if err != nil {
-			fmt.Println("Ошибка открытия файла:", err)
-		}
-
 		scanner := bufio.NewScanner(file)
-		var key int
-		if scanner.Scan() {
-			key, err = strconv.Atoi(scanner.Text())
-			if err != nil {
-				logger.Fatalln("ошибка преобразования str в int")
-			}
-		}
 		if err := scanner.Err(); err != nil {
 			fmt.Println("Ошибка чтения:", err)
 		}
 		defer file.Close()
 		scanner = bufio.NewScanner(os.Stdin)
-		var s Splitmix64
-		var x Xoshiro256_PP
 
-		var seed = make([]uint64, 4)
-		for range int(key * 4) {
-			s.Next()
-		}
-		for i := range 4 {
-			seed[i] = s.Next()
-		}
-		x.S = [4]uint64(seed)
-
-		fmt.Println("Введите количество uint64 значений: ")
+		fmt.Println("Введите количество значений: ")
 		valsNum := -1
 		if scanner.Scan() {
 			valsNum, err = strconv.Atoi(scanner.Text())
@@ -140,16 +100,34 @@ func main() {
 		}
 		defer file_res.Close()
 
+		fmt.Println("Введите название файле с параметрами: ")
+		paramFile := ""
+		if scanner.Scan() {
+			paramFile = scanner.Text()
+		}
+		entropy, err := os.ReadFile(paramFile)
+		if err != nil {
+			logger.Fatalln("ошибка чтение секретного файла")
+		}
+		nonce := []byte("nonce1234")
+
+		drbg, err := NewHashDRBG(entropy, nonce, nil)
+		if err != nil {
+			log.Fatal(err)
+		}
 		for range valsNum {
-			file_res.WriteString(strconv.FormatUint(x.Next(), 10) + "\n")
+			output, err := drbg.Generate(32, nil)
+			if err != nil {
+				log.Fatal(err)
+			}
+			file_res.WriteString(hex.EncodeToString(output) + "\n")
 		}
 
 		src := rand.NewSource(time.Now().UnixNano())
 		r := rand.New(src)
 		for range 5 {
-			for index := range x.S {
-				x.S[index] = r.Uint64()
-			}
+			drbg.V = []byte(fmt.Sprint(r.Uint64()))
+
 		}
 
 	}
