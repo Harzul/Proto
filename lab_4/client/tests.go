@@ -40,24 +40,29 @@ func testAlgo() error {
 	size := 256 * (1 + 1) //key_param
 	res := make([]uint8, size/8)
 	kdfTree(res, K, 32, 1, size)
-	message := createMessage(mes, iv, res[0*32:0*32+32])
+	message := createMessage(mes, iv, res[0:32])
 	jsonData, err := json.Marshal(message)
 	if err != nil {
 		return errors.New("ошибка провекрки функционалки")
 	}
-	_ = jsonData
 	good := Message{
 		Header: Header{
 			ExternalKeyIdFlag: "1",
 			Version:           "0",
 			CS:                "111000",
 			KeyId:             "10000000",
-			SeqNum:            "1",
+			SeqNum:            "0",
 		},
-		PayloadData: "9c8fbab4a81e6177f422151da222efb9d77159582421f3ba2bd0c98d10270a4b18e94e7b75b32ec5b41f4a2ce8637d4e96bbd9f7befe4ecd244111805652f101d25163a20c0a5b3f3b824121afb322c0",
-		ICV:         "f0831a8dbb25f5736b5f64003e72e53cdb90284338fd9051f3664c42550cb6a5",
+		PayloadData: "de9f19d019f4497edd6da71e0d7d968589e4961717236b2b66946de4b93edccbd2df9e05d1a3e4e4b727c0ddb3d5119b5f02276aed2480fe1c8e75022ff4c0519240012f29fbcca6ce4197ab0d4875dd",
+		ICV:         "082a630662158c99220ad778084770d6294fe8cfed2756f375be247b32093abb",
 	}
-	_ = good
+	goodData, err := json.Marshal(good)
+	if err != nil {
+		return errors.New("ошибка провекрки функционалки")
+	}
+	if string(goodData[:]) != string(jsonData[:]) {
+		return errors.New("контроль функциональности не пройден")
+	}
 	return nil
 }
 
