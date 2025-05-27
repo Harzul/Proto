@@ -26,6 +26,7 @@ var iv = []byte{
 	0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef,
 	0x23, 0x45, 0x67, 0x89, 0x0a, 0xbc, 0xde, 0xf1,
 }
+var recievedMessages = make([]bool, SeqNum)
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	file, logger := initLogger()
@@ -43,6 +44,15 @@ func handler(w http.ResponseWriter, r *http.Request) {
 		logger.Fatalln("Error, Invalid JSON")
 		return
 	}
+	s, err := json.Marshal(msg)
+	if err != nil {
+		fmt.Println("Error marshalling JSON:", err)
+		return
+	}
+	if len(s) > 2048 {
+		http.Error(w, "Invalid JSON len", http.StatusBadRequest)
+		logger.Fatalln("Error, Invalid JSON len")
+	}
 	if msg.Header.Version == VERSION && msg.Header.CS == CS {
 		val, _ := strconv.Atoi(msg.Header.SeqNum)
 		if val < 0 {
@@ -51,7 +61,24 @@ func handler(w http.ResponseWriter, r *http.Request) {
 			logger.Fatalln("Error, wrong SeqNum")
 			return
 		}
-		fmt.Println(val)
+
+		Snum, err := strconv.Atoi(msg.Header.SeqNum)
+		if err != nil {
+			fmt.Println("Conversion error:", err)
+			return
+		}
+		if (uint64(Snum) < SeqNum) && (recievedMessages[Snum]) {
+			w.WriteHeader(http.StatusConflict)
+			w.Write([]byte("Repeated SeqNum"))
+			logger.Fatalln("Error, Repeated SeqNum")
+			return
+		}
+		if uint64(Snum) > SeqNum {
+			ttt := make([]bool, Snum)
+			copy(ttt, recievedMessages)
+			ttt[Snum-1] = true
+			recievedMessages = ttt
+		}
 
 		size := 256 * (val) //key_param
 		res := make([]uint8, size/8)
